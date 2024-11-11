@@ -19,6 +19,8 @@ use std::sync::Arc;
 
 #[cfg(feature = "storage-gcs")]
 use opendal::services::GcsConfig;
+#[cfg(feature = "storage-oss")]
+use opendal::services::OssConfig;
 #[cfg(feature = "storage-s3")]
 use opendal::services::S3Config;
 use opendal::{Operator, Scheme};
@@ -44,6 +46,17 @@ pub(crate) enum Storage {
         client: reqwest::Client,
         config: Arc<S3Config>,
     },
+    #[cfg(feature = "storage-oss")]
+    Oss {
+        /// oss storage could have `oss://`
+        /// Storing the scheme string here to return the correct path.
+        scheme_str: String,
+        /// uses the same client for one FileIO Storage.
+        ///
+        /// TODO: allow users to configure this client.
+        client: reqwest::Client,
+        config: Arc<OssConfig>,
+    },
     #[cfg(feature = "storage-gcs")]
     Gcs { config: Arc<GcsConfig> },
 }
@@ -64,6 +77,12 @@ impl Storage {
                 scheme_str,
                 client: reqwest::Client::new(),
                 config: super::s3_config_parse(props)?.into(),
+            }),
+            #[cfg(feature = "storage-oss")]
+            Scheme::Oss => Ok(Self::Oss {
+                scheme_str,
+                client: reqwest::Client::new(),
+                config: super::oss_config_parse(props)?.into(),
             }),
             #[cfg(feature = "storage-gcs")]
             Scheme::Gcs => Ok(Self::Gcs {
@@ -130,6 +149,26 @@ impl Storage {
                     Err(Error::new(
                         ErrorKind::DataInvalid,
                         format!("Invalid s3 url: {}, should start with {}", path, prefix),
+                    ))
+                }
+            }
+            #[cfg(feature = "storage-oss")]
+            Storage::Oss {
+                scheme_str,
+                client,
+                config,
+            } => {
+                let op = super::oss_config_build(client, config, path)?;
+                let op_info = op.info();
+
+                // Check prefix of oss path.
+                let prefix = format!("{}://{}/", scheme_str, op_info.name());
+                if path.starts_with(&prefix) {
+                    Ok((op, &path[prefix.len()..]))
+                } else {
+                    Err(Error::new(
+                        ErrorKind::DataInvalid,
+                        format!("Invalid oss url: {}, should start with {}", path, prefix),
                     ))
                 }
             }

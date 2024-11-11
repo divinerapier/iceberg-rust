@@ -28,6 +28,7 @@ rust-version = { workspace = true }
 iceberg = { workspace = true }
 iceberg-catalog-rest = { workspace = true }
 tokio = { version = "1", features = ["full"] }
+futures = "0.3"
 
 [[example]]
 name = "rest-catalog-namespace"
@@ -36,3 +37,7 @@ path = "src/rest_catalog_namespace.rs"
 [[example]]
 name = "rest-catalog-table"
 path = "src/rest_catalog_table.rs"
+
+[[example]]
+name = "storage-oss"
+path = "src/storage_oss.rs"

@@ -88,3 +88,8 @@ use storage_fs::*;
 mod storage_gcs;
 #[cfg(feature = "storage-gcs")]
 pub use storage_gcs::*;
+
+#[cfg(feature = "storage-oss")]
+mod storage_oss;
+#[cfg(feature = "storage-oss")]
+pub use storage_oss::*;
