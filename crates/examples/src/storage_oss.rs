@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use futures::{StreamExt, TryStreamExt};
-use iceberg::{Catalog, Result};
+use iceberg::{table, Catalog, NamespaceIdent, Result};
 use iceberg_catalog_rest::{RestCatalog, RestCatalogConfig};
 
 fn setup_env() {
@@ -38,39 +38,46 @@ async fn main() -> Result<()> {
             if t.metadata().current_snapshot().is_none() {
                 continue;
             }
-            let schema = t.metadata().current_schema();
-            // println!("schema: {:?}", schema);
-            let mut ids = schema.identifier_field_ids().collect::<Vec<_>>();
-            println!("fields count: {}", ids.len());
-            ids.sort();
-            let fields = ids
-                .into_iter()
-                .map(|id| {
-                    let name = schema.name_by_field_id(id).unwrap();
-                    name.to_string()
-                })
-                .collect::<Vec<_>>();
+            if table
+                .namespace
+                .ne(&NamespaceIdent::from_strs(&["t2_db"]).unwrap())
+            {
+                continue;
+            }
+            if table.name().ne("my_test_table") {
+                continue;
+            }
+            let fields = t.metadata().current_schema().as_struct().fields();
+            println!("\tfields: {}", fields.len());
+            println!("\t\t{:?}", fields);
             if fields.is_empty() {
                 continue;
             }
-            println!("\t\tnames: {:?}", fields);
+            let mut fields = fields.to_vec();
+            fields.sort_by_key(|field| field.id);
+            let names = fields
+                .iter()
+                .map(|filed| filed.name.clone())
+                .collect::<Vec<_>>();
+            println!("\t\tnames: {:?}", names);
             let stream = t
                 .scan()
-                .select(&fields)
+                .select(&names)
                 .build()
                 .expect("build select")
-                .plan_files()
-                .await
-                .expect("plan files")
-                // .to_arrow()
+                // .plan_files()
                 // .await
-                // .expect("to arrow await")
-                .take(2);
+                // .expect("plan files")
+                .to_arrow()
+                .await
+                .expect("to arrow await")
+                .take(10);
             // Consume this stream like arrow record batch stream.
             let data: Vec<_> = stream.try_collect().await?;
             for item in data {
-                println!("\t\trecords: {:?}", item);
+                println!("\t\trecords: {:?}", item["id"]);
             }
+            break;
         }
     }
 
